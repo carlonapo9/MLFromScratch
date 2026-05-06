@@ -6,33 +6,22 @@ import ml.utils.Metrics;
 import ml.utils.Scaler;
 import ml.utils.Shuffle;
 
+import java.util.Arrays;
+
 public class Main {
 
-    record DatasetConfig(String name, String path, boolean hasHeader, int labelIndex) {}
+    record DatasetConfig(String name, String path) {}
 
     public static void main(String[] args) throws Exception {
 
         DatasetConfig[] datasets = new DatasetConfig[] {
-                new DatasetConfig("Iris", "datasets/iris.csv", true, 4),
-                new DatasetConfig("Wine", "datasets/wine.csv", true, 0),
-                new DatasetConfig("Breast Cancer", "datasets/breast_cancer.csv", true, 1)
+                new DatasetConfig("Iris", "datasets/iris.csv"),
+                new DatasetConfig("Breast Cancer (WDBC)", "datasets/wdbc.csv"),
+                new DatasetConfig("Wine Quality (Red)", "datasets/winequality-red.csv"),
+                new DatasetConfig("Wine Quality (White)", "datasets/winequality-white.csv")
         };
 
-        Algorithm[] models = new Algorithm[] {
-                new OneVsRestClassifier(() -> new KNNClassifier(5), 3),
-                new OneVsRestClassifier(() -> new LogisticRegression(2000, 0.1), 3),
-                new OneVsRestClassifier(() -> new SVMClassifierRBF(20, 0.01, 1.0, 0.5), 3),
-                new MLPClassifier(4, 8, 3, 500, 0.01)
-        };
-
-        String[] modelNames = {
-                "KNN (k=5)",
-                "Logistic Regression",
-                "RBF SVM",
-                "MLP (4→8→3)"
-        };
-
-        int runs = 10;
+        int runs = 5;
 
         for (DatasetConfig cfg : datasets) {
 
@@ -40,9 +29,26 @@ public class Main {
             System.out.println(" DATASET: " + cfg.name());
             System.out.println("==============================");
 
-            Dataset data = CSVLoader.load(cfg.path(), cfg.hasHeader(), cfg.labelIndex());
+            Dataset data = CSVLoader.loadAuto(cfg.path());
             double[][] X = data.X;
             double[] y = data.y;
+
+            int nFeatures = X[0].length;
+            int nClasses = numClasses(y);
+
+            Algorithm[] models = new Algorithm[] {
+                    new OneVsRestClassifier(() -> new KNNClassifier(5), nClasses),
+                    new OneVsRestClassifier(() -> new LogisticRegression(2000, 0.1), nClasses),
+                    new OneVsRestClassifier(() -> new SVMClassifierRBF(20, 0.01, 1.0, 0.5), nClasses),
+                    new MLPClassifier(nFeatures, 8, nClasses, 500, 0.01)
+            };
+
+            String[] modelNames = {
+                    "KNN (k=5)",
+                    "Logistic Regression",
+                    "RBF SVM",
+                    "MLP (" + nFeatures + "→8→" + nClasses + ")"
+            };
 
             double[] sumAcc = new double[models.length];
 
@@ -79,5 +85,9 @@ public class Main {
                 System.out.println(modelNames[i] + " → avg accuracy: " + avg);
             }
         }
+    }
+
+    private static int numClasses(double[] y) {
+        return (int) Arrays.stream(y).distinct().count();
     }
 }
